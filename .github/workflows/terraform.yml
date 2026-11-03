@@ -1,26 +1,76 @@
-deploy:
-  name: Terraform Deployment
-  runs-on: ubuntu-latest
+name: Terraform CI/CD
 
-  if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
 
-  needs: validate
+permissions:
+  contents: read
 
-  environment: production
+concurrency:
+  group: terraform-production
+  cancel-in-progress: false
 
-  permissions:
-    contents: read
-    id-token: write
+jobs:
+  validate:
+    name: Terraform Validation
+    runs-on: ubuntu-latest
 
-  steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-        aws-region: ap-south-1
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
 
-    - name: Verify AWS Identity
-      run: aws sts get-caller-identity
+      - name: Terraform Format
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        run: terraform validate
+
+  deploy:
+    name: Terraform Deployment
+    runs-on: ubuntu-latest
+
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    needs: validate
+
+    environment: production
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-south-1
+
+      - name: Verify AWS Identity
+        run: aws sts get-caller-identity
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Terraform Plan
+        run: terraform plan -input=false -out=tfplan
+
+      - name: Terraform Apply
+        run: terraform apply -input=false -auto-approve tfplan
