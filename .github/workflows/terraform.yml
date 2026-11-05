@@ -1,12 +1,15 @@
-name: Terraform CI/CD
+name: Terraform AWS CI/CD
 
 on:
   pull_request:
     branches:
       - main
+
   push:
     branches:
       - main
+
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -16,6 +19,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+
   validate:
     name: Terraform Validation
     runs-on: ubuntu-latest
@@ -26,12 +30,17 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.5
+
+      - name: Terraform Version
+        run: terraform version
 
       - name: Terraform Format
         run: terraform fmt -check -recursive
 
       - name: Terraform Init
-        run: terraform init -backend=false
+        run: terraform init -backend=false -input=false
 
       - name: Terraform Validate
         run: terraform validate
@@ -40,7 +49,7 @@ jobs:
     name: Terraform Deployment
     runs-on: ubuntu-latest
 
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
 
     needs: validate
 
@@ -56,12 +65,15 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.5
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ap-south-1
+          role-session-name: GitHubActionsTerraform
 
       - name: Verify AWS Identity
         run: aws sts get-caller-identity
