@@ -1,6 +1,6 @@
 terraform {
   backend "s3" {
-    bucket       = "abc-terraform-state-2026-unique"
+    bucket       = "abc-terraform-state-2026-aakash"
     key          = "github-actions/terraform.tfstate"
     region       = "ap-south-1"
     encrypt      = true
